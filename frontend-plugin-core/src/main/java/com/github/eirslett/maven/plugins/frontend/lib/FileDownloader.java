@@ -8,6 +8,9 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
+import java.security.KeyManagementException;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -20,12 +23,16 @@ import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.protocol.HttpClientContext;
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
+import org.apache.http.conn.ssl.TrustAllStrategy;
 import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.client.BasicAuthCache;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.http.ssl.SSLContextBuilder;
 import org.codehaus.plexus.util.StringUtils;
+import org.apache.http.conn.ssl.TrustSelfSignedStrategy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -127,11 +134,17 @@ final class DefaultFileDownloader implements FileDownloader {
     }
 
     private CloseableHttpClient buildHttpClient(CredentialsProvider credentialsProvider) {
-    	return HttpClients.custom()
-    			.disableContentCompression()
-    			.useSystemProperties()
-    			.setDefaultCredentialsProvider(credentialsProvider)
-    			.build();
+        try {
+            return HttpClients.custom()
+                    .disableContentCompression()
+                    .setSSLContext(new SSLContextBuilder().loadTrustMaterial(null, TrustAllStrategy.INSTANCE).build())
+                    .setSSLHostnameVerifier(NoopHostnameVerifier.INSTANCE)
+                    .useSystemProperties()
+                    .setDefaultCredentialsProvider(credentialsProvider)
+                    .build();
+        } catch (NoSuchAlgorithmException | KeyStoreException | KeyManagementException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private CredentialsProvider makeCredentialsProvider(String host, int port, String username, String password) {
